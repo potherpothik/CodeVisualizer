@@ -1,0 +1,9 @@
+# One relative path per line. Lines starting with # are comments.
+#
+# Paths are relative to the **git repository root** (parent of CodeVisualizer/).
+#
+# Examples (uncomment + adjust to your repo):
+# Assaignment
+# Facade-Glazing-Analytics
+# scripts
+# Facade V3
