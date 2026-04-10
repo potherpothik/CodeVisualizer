@@ -228,18 +228,40 @@ class CodeAnalyzer(ast.NodeVisitor):
 # ─────────────────────────────────────────────
 
 class ProjectVisualizer:
-    def __init__(self, root_dir: str):
+    def __init__(self, root_dir: str, exclude_prefixes: Optional[list[str]] = None):
         self.root_dir = root_dir
+        self.exclude_prefixes = exclude_prefixes or []
         self.files: dict[str, FileInfo] = {}
         self.functions: dict[str, FunctionInfo] = {}
         self.classes: dict[str, ClassInfo] = {}
         self.errors: list[str] = []
+
+    def _norm_rel(self, rel: str) -> str:
+        return os.path.normpath(rel).replace("\\", "/")
+
+    def _should_skip_path(self, rel_file: str) -> bool:
+        """Skip if file path is under any exclude prefix (relative to root_dir)."""
+        rel_norm = self._norm_rel(rel_file)
+        for raw in self.exclude_prefixes:
+            ex = raw.strip()
+            if not ex or ex.startswith("#"):
+                continue
+            ex_norm = self._norm_rel(ex).strip("./")
+            if not ex_norm:
+                continue
+            if rel_norm == ex_norm or rel_norm.startswith(ex_norm + "/"):
+                return True
+        return False
 
     def analyze(self):
         for path in Path(self.root_dir).rglob("*.py"):
             if any(part.startswith(".") for part in path.parts):
                 continue
             if "__pycache__" in path.parts:
+                continue
+
+            rel_file = os.path.relpath(str(path), self.root_dir)
+            if self._should_skip_path(rel_file):
                 continue
 
             try:
@@ -466,6 +488,14 @@ Output files:
         action="store_true",
         help="Generate a single all-in-one diagram instead of separate files",
     )
+    parser.add_argument(
+        "--exclude",
+        "-x",
+        action="append",
+        default=[],
+        metavar="PREFIX",
+        help="Skip Python files under this path prefix (relative to project root). Repeatable.",
+    )
 
     args = parser.parse_args()
     project_path = os.path.abspath(args.project_path)
@@ -478,7 +508,7 @@ Output files:
     print(f"  🔍  Analyzing: {project_path}")
     print(f"{'═' * 60}\n")
 
-    viz = ProjectVisualizer(project_path)
+    viz = ProjectVisualizer(project_path, exclude_prefixes=args.exclude or [])
 
     print("[ 1/3 ] Scanning & analyzing files...")
     viz.analyze()

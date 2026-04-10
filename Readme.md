@@ -2,7 +2,14 @@
 
 Generate **Mermaid diagrams** and a **JSON index** from a Python codebase so IDEs and AI assistants can navigate structure, classes, call patterns, and workflows faster.
 
-Outputs are written to **`mermaid_output/`** at the **host repository root** (by design), not inside this folder.
+**Outputs** live under the **host repository root** in `mermaid_output/`, organized like this:
+
+- **`mermaid_output/<sanitized-target>/`** — diagrams and `codebase_index.json` for **one** line from `.ai-map-targets` (multiple targets **do not** overwrite each other).
+- **`mermaid_output/.inputs.<sanitized-target>.sha1`** — small cache files at the **parent** of those folders; used to skip regeneration when **git-tracked** files under that target are unchanged.
+
+**`<sanitized-target>`** is derived from each target path: `/` and spaces become `_`, and the special target **`.`** (repo root) becomes **`__root__`** (e.g. `packages/my app` → `packages__my_app`).
+
+Optional **`.ai-map-excludes`** supplies path prefixes for **`codebase_visualizer.py --exclude`** so wide targets (especially **`.`**) can skip dependencies and other large trees (e.g. `node_modules`, `vendor`, virtualenvs, this tool’s folder if embedded in the same repo).
 
 ---
 
@@ -21,18 +28,20 @@ Outputs are written to **`mermaid_output/`** at the **host repository root** (by
 ```
 CodeVisualizer/
   Readme.md                 ← this file
-  codebase_visualizer.py    ← main analyzer + CLI
+  codebase_visualizer.py    ← main analyzer + CLI (--out, --exclude, --single, …)
   scripts/
-    regenerate_mermaid_output.sh
+    regenerate_mermaid_output.sh   ← reads .ai-map-targets + .ai-map-excludes, per-target --out
     install_git_hooks.sh
     ai_note.sh
   git-hooks/
     pre-commit
   Readme/
     .ai-map-targets.example
-    AI_AGENT_GUIDE.md       ← short Odoo-oriented quick reference
+    .ai-map-excludes.example
+    AI_AGENT_GUIDE.md       ← short quick reference for agents and daily use
     AI_PROJECT_MEMORY.md    ← curated “what changed” log (optional)
-  .ai-map-targets           ← optional; you can keep config here (not committed in your main repo if you gitignore the folder)
+  .ai-map-targets           ← optional (same semantics as Readme/.ai-map-targets; see below)
+  .ai-map-excludes          ← optional prefix list for --exclude
 ```
 
 ---
@@ -66,7 +75,7 @@ You may place the folder deeper (e.g. `tools/CodeVisualizer/`). Scripts resolve 
 
 ### 2) Configure what to analyze (required)
 
-The analyzer should **not** be pointed at huge trees unless you intend to (e.g. full Odoo `community/` + `enterprise/`). List **only** the subtrees you care about.
+The analyzer should **not** be pointed at huge trees unless you intend to (e.g. all of `node_modules/`, a full platform checkout). List **only** the subtrees you care about, or use target **`.`** together with a strict **`.ai-map-excludes`** file.
 
 Create **one** of these files (first existing file wins):
 
@@ -90,18 +99,70 @@ packages/api
 
 Paths may contain spaces (e.g. `My Client App`); quote if your shell needs it when passing a single folder on the CLI.
 
-### 3) (Optional) Ignore the tool and generated output in the host repo
+**Multiple targets:** each non-comment line produces its **own** subdirectory under `mermaid_output/`. Example for a **monorepo**: one focused package plus “everything at repo root” with vendor trees excluded:
 
-If the host project should **not** publish CodeVisualizer to its GitHub (separate tool repo), add to the host **`.gitignore`**:
+```text
+packages/core
+.
+```
+
+With **`.ai-map-excludes`** (see §4), list prefixes such as `node_modules`, `vendor`, `.venv`, `CodeVisualizer`, and—if you want that package **only** in its own folder—`packages/core` so the **`.`** run does not duplicate it under **`__root__`**.
+
+### 3) Git: ignore or stop tracking outputs and the tool (host repo)
+
+Use this when generated diagrams should stay **local**, or when the tool is **vendored/copied** per developer and must not be part of the host project’s remote.
+
+#### Never commit these paths (recommended)
+
+Add to the host repository **`.gitignore`** (adjust names if your tool folder or output directory differs):
 
 ```gitignore
+# Optional: embed tool only locally / from a separate repo
 CodeVisualizer/
+
+# Generated AI / diagram artifacts
 mermaid_output/
 ```
 
-Then each developer clones or copies CodeVisualizer locally.
+New clones will not show these as untracked noise, and `git add` will not pick them up by default.
 
-### 4) Regenerate diagrams
+#### Paths were already committed: stop tracking but keep files on disk
+
+If `CodeVisualizer/` or `mermaid_output/` was committed before you added `.gitignore`, remove them from the **index** only (files remain locally):
+
+```bash
+git rm -r --cached CodeVisualizer
+git rm -r --cached mermaid_output
+git commit -m "Stop tracking CodeVisualizer and mermaid_output (local tooling and generated output)"
+```
+
+After that, ensure the same paths are listed in **`.gitignore`** so they are not re-added.
+
+#### Stop tracking a single file
+
+```bash
+git rm --cached path/to/file
+```
+
+#### Repository-wide ignore without editing `.gitignore` (one machine only)
+
+You can add patterns to **`.git/info/exclude`** in the host repo (not shared with collaborators). Same syntax as `.gitignore`.
+
+> **Note:** Incremental regeneration uses **git-tracked** file lists for hashing. If you rely on that optimization, keep your source code **tracked**; ignoring only `mermaid_output/` and the tool folder is the usual setup.
+
+### 4) Optional: exclude subtrees (usually with target `.`)
+
+When a target is the **repo root** (`.`), you usually skip vendor/core trees. Create **one** excludes file; the regenerate script uses the **first path that exists**:
+
+1. `CodeVisualizer/Readme/.ai-map-excludes`
+2. `CodeVisualizer/.ai-map-excludes`
+3. `/.ai-map-excludes` at the **host repo root** (legacy)
+
+Copy from `Readme/.ai-map-excludes.example`. Each non-comment line is a **relative path prefix** from the **analyzed directory** (for target `.`, that is the host repo root): e.g. `node_modules`, `vendor`, `.venv`, `dist`, `CodeVisualizer`.
+
+The script passes every prefix as **`codebase_visualizer.py --exclude`** on **each** target run. For a **narrow** target (single addon folder), excludes that do not match any file under that folder have **no effect**.
+
+### 5) Regenerate diagrams
 
 From the **host repository root**:
 
@@ -121,7 +182,7 @@ Explicit targets file:
 ./CodeVisualizer/scripts/regenerate_mermaid_output.sh --targets-file "CodeVisualizer/.ai-map-targets"
 ```
 
-**Output directory:** `mermaid_output/` at the host repo root, typically:
+**Output directory:** for each target line, **`mermaid_output/<sanitized-target>/`**, typically containing:
 
 - `architecture.mmd`
 - `classes.mmd`
@@ -130,11 +191,11 @@ Explicit targets file:
 - `summary.md`
 - `codebase_index.json`
 
-**Incremental runs:** For each target, a hash is stored under `mermaid_output/.inputs.<sanitized_target>.sha1`. If **tracked** git files under that target did not change, regeneration is skipped.
+**Incremental runs:** For each target, a hash is stored in **`mermaid_output/.inputs.<sanitized_target>.sha1`** (next to the per-target folders, not inside them). The hash is based on **git-tracked** files under that target. If nothing changed, that target’s diagrams are skipped.
 
 > **Untracked files** are not included in that hash. After large local edits that are not yet committed, run with a **single explicit path** argument to force analysis, or commit/stage as appropriate.
 
-### 5) (Optional) Auto-regenerate on `git commit`
+### 6) (Optional) Auto-regenerate on `git commit`
 
 Install the hook once per clone (from host repo root):
 
@@ -144,7 +205,7 @@ Install the hook once per clone (from host repo root):
 
 This copies `CodeVisualizer/git-hooks/pre-commit` to `.git/hooks/pre-commit`. On commit, if staged files match common source extensions (`.py`, `.xml`, `.js`, `.ts`, …), it runs `regenerate_mermaid_output.sh`.
 
-### 6) (Optional) Curated “project memory” for AI sessions
+### 7) (Optional) Curated “project memory” for AI sessions
 
 Chat transcripts are not in git. To keep a short, durable log (branch, HEAD, note, diff stat, recent commits):
 
@@ -164,9 +225,18 @@ From anywhere:
 python3 /path/to/CodeVisualizer/codebase_visualizer.py /path/to/project/to/analyze --out /path/to/mermaid_output
 ```
 
+Skip subtrees (prefixes relative to `project_path`):
+
+```bash
+python3 /path/to/CodeVisualizer/codebase_visualizer.py /path/to/repo/root \
+  --out /path/to/mermaid_output \
+  --exclude node_modules --exclude vendor --exclude .venv --exclude CodeVisualizer
+```
+
 Options:
 
 - `--out`, `-o` — output directory (default `./mermaid_output` relative to the current working directory)
+- `--exclude`, `-x` — skip `.py` files whose path (relative to `project_path`) equals or starts with this prefix; repeatable
 - `--single`, `-s` — single combined diagram mode (if enabled in your copy of the script)
 
 ---
@@ -181,8 +251,9 @@ Options:
 You only configure:
 
 1. **Where the tool lives** in the tree (see above).
-2. **`.ai-map-targets`** — which directories to scan (relative to host git root).
-3. **Host `.gitignore`** — if you want `CodeVisualizer/` and `mermaid_output/` excluded from that repo.
+2. **`.ai-map-targets`** — which directories to scan (relative to host git root); each line → `mermaid_output/<sanitized-target>/`.
+3. **`.ai-map-excludes`** (optional) — path prefixes for `--exclude` when scanning wide trees (especially target `.`).
+4. **Host `.gitignore`** — if you want `CodeVisualizer/` and `mermaid_output/` excluded from that repo.
 
 If you **rename** the tool directory, update:
 
@@ -219,13 +290,15 @@ Or embed the folder into a host project and use the scripts from the host root a
 |--------|----------------|
 | `No target provided and no targets file found` | Create `.ai-map-targets` in one of the locations listed in section 2. |
 | `unrecognized arguments` / path split wrong | Quote paths that contain **spaces**. |
-| Regeneration **never** runs | Hash skip: compare `mermaid_output/.inputs.*.sha1`; run with an explicit folder argument to force. |
-| **Slow** runs | You pointed at too large a tree; narrow `.ai-map-targets` to app/custom folders only. |
+| Regeneration **never** runs | Hash skip: inspect `mermaid_output/.inputs.*.sha1`; run with an explicit folder argument to force one target. |
+| **Slow** runs | Narrow `.ai-map-targets`, or use target `.` with a thorough **`.ai-map-excludes`** (dependencies, build output, virtualenvs). |
+| Wrong or missing diagrams after multi-target setup | Each target writes to **`mermaid_output/<sanitized-target>/`**; open the folder that matches your target line (not the old flat `mermaid_output/*.mmd` layout). |
 | Hook does nothing | Ensure `install_git_hooks.sh` ran in a **git** repo; check staged file extensions match the hook. |
 
 ---
 
 ## See also
 
-- `Readme/AI_AGENT_GUIDE.md` — condensed workflow (written with Odoo-sized repos in mind).
+- `Readme/AI_AGENT_GUIDE.md` — condensed workflow for day-to-day use.
 - `Readme/.ai-map-targets.example` — template for target paths.
+- `Readme/.ai-map-excludes.example` — template for `--exclude` prefixes.

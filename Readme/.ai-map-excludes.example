@@ -1,0 +1,19 @@
+# Path prefixes to skip when analyzing a target (often used with target `.` = repo root).
+# One path per line, relative to the **directory being analyzed**. Lines starting with # are ignored.
+#
+# Typical use: exclude dependencies, generated assets, virtualenvs, and other large trees
+# so analysis stays fast and diagrams stay focused on your code.
+#
+# Examples (uncomment and adjust):
+# node_modules
+# vendor
+# .venv
+# venv
+# dist
+# build
+# CodeVisualizer
+# Facade V3
+# enterprise
+# community
+# odoo-venv
+# __pycache__

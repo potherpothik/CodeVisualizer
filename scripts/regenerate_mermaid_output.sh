@@ -4,13 +4,11 @@ set -euo pipefail
 # Regenerate Mermaid + index artifacts for AI navigation/debugging.
 #
 # Usage (from repo root):
-#   ./CodeVisualizer/scripts/regenerate_mermaid_output.sh "Facade V3"
+#   ./CodeVisualizer/scripts/regenerate_mermaid_output.sh "packages/core"
 #   ./CodeVisualizer/scripts/regenerate_mermaid_output.sh --targets-file "CodeVisualizer/.ai-map-targets"
 #
-# IMPORTANT (Odoo repos):
-# - Do NOT point this at the repo root unless you really want to scan huge
-#   folders like community/enterprise. Prefer custom addon folders or a
-#   specific app folder.
+# Tip: scanning the whole repo root ("." in .ai-map-targets) can be slow; use
+# .ai-map-excludes for vendor trees, virtualenvs, and build output.
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ROOT_DIR="$(git -C "$TOOL_DIR/.." rev-parse --show-toplevel 2>/dev/null || (cd "$TOOL_DIR/.." && pwd))"
@@ -63,6 +61,31 @@ fi
 
 mkdir -p "$OUT_DIR"
 
+resolve_excludes_file() {
+  local candidates=(
+    "$TOOL_DIR/Readme/.ai-map-excludes"
+    "$TOOL_DIR/.ai-map-excludes"
+    "$ROOT_DIR/.ai-map-excludes"
+  )
+  for f in "${candidates[@]}"; do
+    if [[ -f "$f" ]]; then
+      printf '%s' "$f"
+      return 0
+    fi
+  done
+  return 1
+}
+
+EXCLUDE_ARGS=()
+EXCLUDES_FILE="$(resolve_excludes_file || true)"
+if [[ -n "${EXCLUDES_FILE}" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "${line// }" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    EXCLUDE_ARGS+=(--exclude "$line")
+  done < "$EXCLUDES_FILE"
+fi
+
 read_targets() {
   if [[ -n "$TARGET_REL" ]]; then
     printf '%s\n' "$TARGET_REL"
@@ -95,7 +118,9 @@ while IFS= read -r target; do
 
   # Separate state per target to avoid collisions.
   safe_name="$(printf '%s' "$target" | tr '/ ' '__')"
+  [[ "$safe_name" == "." ]] && safe_name="__root__"
   state_file="$OUT_DIR/.inputs.${safe_name}.sha1"
+  target_out="$OUT_DIR/${safe_name}"
 
   new_hash="$(compute_inputs_hash_for_target "$target" || true)"
   old_hash=""
@@ -108,13 +133,14 @@ while IFS= read -r target; do
     continue
   fi
 
-  echo "Regenerating mermaid_output from target: $target_dir"
-  python3 "$TOOL_DIR/codebase_visualizer.py" "$target_dir" --out "$OUT_DIR"
+  echo "Regenerating mermaid_output from target: $target_dir → $target_out"
+  mkdir -p "$target_out"
+  python3 "$TOOL_DIR/codebase_visualizer.py" "$target_dir" --out "$target_out" "${EXCLUDE_ARGS[@]}"
 
   if [[ -n "$new_hash" ]]; then
     printf '%s' "$new_hash" > "$state_file"
   fi
 done < <(read_targets)
 
-echo "Done. Output in: $OUT_DIR"
+echo "Done. Outputs under: $OUT_DIR/<target>/"
 

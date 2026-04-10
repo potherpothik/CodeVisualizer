@@ -1,8 +1,7 @@
-# One relative path per line. Lines starting with # are comments.
+# Local configuration for the host repository (paths relative to host git root).
+# See Readme/.ai-map-targets.example and Readme.md.
 #
-# Examples (uncomment + adjust to your repo):
-# Assaignment
-# Facade-Glazing-Analytics
-# scripts
-# "Facade V3"
-scripts
+# Example (uncomment and adjust):
+# src
+# packages/api
+# .

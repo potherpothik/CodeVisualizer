@@ -1,66 +1,70 @@
-# AI Agent Automation Guide (Odoo workspace)
+# AI agent quick guide (CodeVisualizer)
 
-This repo generates **AI navigation artifacts** (Mermaid diagrams + an index) under `mermaid_output/` to speed up debugging and code understanding.
+This tool generates **Mermaid diagrams** and **`codebase_index.json`** under **`mermaid_output/<target>/`** (one subdirectory per line in `.ai-map-targets`) for faster navigation and AI-assisted debugging.
 
-## 1) Auto-regenerate diagrams when code changes (local)
-
-### Configure targets (important)
+## 1) Configure targets
 
 Put your targets list in **one** of these (first match wins):
 
-1. `CodeVisualizer/Readme/.ai-map-targets` — keeps config next to the AI docs  
-2. `CodeVisualizer/.ai-map-targets` — single file at the tool root (good when reusing the folder elsewhere)  
-3. `/.ai-map-targets` at the repo root — legacy only  
+1. `CodeVisualizer/Readme/.ai-map-targets`
+2. `CodeVisualizer/.ai-map-targets`
+3. `/.ai-map-targets` at the host repo root (legacy)
 
-Copy from `CodeVisualizer/Readme/.ai-map-targets.example`. Paths inside the file are relative to the **repository root**. This avoids scanning huge Odoo sources like `community/` and `enterprise/`.
+Copy from `CodeVisualizer/Readme/.ai-map-targets.example`. Paths are relative to the **host repository root**. Prefer **small, meaningful** subtrees (your apps, libraries) rather than entire dependency trees.
 
-### Regenerate on demand
+## 2) Excludes (when a target is `.`)
 
-```bash
-cp CodeVisualizer/Readme/.ai-map-targets.example CodeVisualizer/.ai-map-targets
-# or: ... CodeVisualizer/Readme/.ai-map-targets
-./CodeVisualizer/scripts/regenerate_mermaid_output.sh
-./CodeVisualizer/scripts/regenerate_mermaid_output.sh "Facade V3"     # one-off run for a specific folder
+If one line in `.ai-map-targets` is **`.`** (whole repo), add **`CodeVisualizer/Readme/.ai-map-excludes`** or **`CodeVisualizer/.ai-map-excludes`** (see `Readme/.ai-map-excludes.example`). Each line is a **relative path prefix** passed to `codebase_visualizer.py --exclude` (e.g. `node_modules`, `vendor`, `.venv`).
+
+### Example: two outputs without scanning vendor trees
+
+**`.ai-map-targets`:**
+
+```text
+services/api
+.
 ```
 
-The script caches a hash per target under `mermaid_output/.inputs.<target>.sha1` and **skips regeneration** if tracked files under that target path did not change.
+**`.ai-map-excludes`** (for the `.` run; adjust to your repo):
 
-### Regenerate automatically on every commit (recommended)
+```text
+CodeVisualizer
+node_modules
+vendor
+.venv
+dist
+services/api
+```
 
-Install the provided git hook:
+You get **`mermaid_output/services__api/`** (that service only) and **`mermaid_output/__root__/`** (repo root minus excluded prefixes). Listing `services/api` twice is intentional only if you want a **dedicated** folder for that subtree **and** want it **omitted** from the root map via excludes.
+
+## 3) Regenerate
+
+```bash
+./CodeVisualizer/scripts/regenerate_mermaid_output.sh
+./CodeVisualizer/scripts/regenerate_mermaid_output.sh "packages/core"   # one-off path (quote if spaces)
+```
+
+Hashes in **`mermaid_output/.inputs.<target>.sha1`** skip work when **git-tracked** files under that target are unchanged.
+
+## 4) Optional: regenerate on commit
 
 ```bash
 ./CodeVisualizer/scripts/install_git_hooks.sh
 ```
 
-This installs `.git/hooks/pre-commit` which regenerates `mermaid_output/` when staged changes include typical source files (`.py`, `.xml`, `.js`, `.ts`, etc.).
-
-> Note: `mermaid_output/` is currently gitignored in this repo, so the hook regenerates files **for local AI use** only.
-
-## 2) Track “project memory” so future AI sessions understand what changed
-
-Cursor chat transcripts are not tracked in git. Instead, keep a **small curated log** tied to commits/branches.
-
-Append a note after meaningful work:
+## 5) Optional: curated “project memory”
 
 ```bash
-./CodeVisualizer/scripts/ai_note.sh "What changed, why, and where. Include error context if relevant."
+./CodeVisualizer/scripts/ai_note.sh "Short note: what changed, why, where."
 ```
 
-This appends to `CodeVisualizer/Readme/AI_PROJECT_MEMORY.md`:
-- branch + HEAD SHA
-- your note
-- `git diff --stat`
-- last 5 commits
+Appends to `CodeVisualizer/Readme/AI_PROJECT_MEMORY.md` (with a fallback path documented in the main Readme).
 
 ## Suggested workflow
 
-- Run your work (debug/fix/feature)
-- Commit normally
-- Add an AI memory note (1–3 sentences) with the intent and context
-- When debugging later, give the AI:
-  - the error traceback/logs
-  - the affected module path
-  - `CodeVisualizer/Readme/AI_PROJECT_MEMORY.md`
-  - `mermaid_output/codebase_index.json` + `mermaid_output/callgraph.mmd` (if available)
+- Keep targets and excludes tight.
+- Regenerate after meaningful code changes (or rely on the hook).
+- When asking an AI for help, attach logs/tracebacks, the relevant path, and files under **`mermaid_output/<target>/`** (e.g. `codebase_index.json`, `callgraph.mmd`).
 
+For **Git ignore / untrack** (host repo), see **`Readme.md` → “Git: ignore or stop tracking outputs and the tool”**.
