@@ -8,8 +8,9 @@
 ║  1. architecture.mmd  — File/folder structure + imports          ║
 ║  2. classes.mmd       — Class hierarchy + inheritance            ║
 ║  3. callgraph.mmd     — Function calls + cross-file flows        ║
-║  4. dataflow.mmd      — Data/variable flow between functions     ║
-║  5. summary.md        — Full Markdown report for AI agents       ║
+║  4. workflow.mmd      — Human-readable execution flow            ║
+║  5. erd.mmd           — Human-readable entity relationship map   ║
+║  6. summary.md        — Full Markdown report for AI agents       ║
 ║                                                                  ║
 ║  Usage:                                                          ║
 ║    python codebase_visualizer.py /path/to/project                ║
@@ -22,6 +23,7 @@ import ast
 import os
 import sys
 import json
+import re
 import argparse
 import hashlib
 from collections import defaultdict
@@ -106,6 +108,28 @@ class CodeAnalyzer(ast.NodeVisitor):
         self._class_stack: list[str] = []
         self._function_stack: list[FunctionInfo] = []
 
+    def _current_class_key(self) -> Optional[str]:
+        if not self._class_stack:
+            return None
+        key = f"{self.rel_path}::{self._class_stack[-1]}"
+        return key if key in self.classes else None
+
+    def _record_class_attribute(self, name: Optional[str]):
+        if not name:
+            return
+        ckey = self._current_class_key()
+        if not ckey:
+            return
+        attrs = self.classes[ckey].attributes
+        if name not in attrs:
+            attrs.append(name)
+
+    def _extract_self_attribute(self, target) -> Optional[str]:
+        if isinstance(target, ast.Attribute) and isinstance(target.value, ast.Name):
+            if target.value.id in ("self", "cls"):
+                return target.attr
+        return None
+
     # ── Imports ──────────────────────────────
 
     def visit_Import(self, node):
@@ -127,10 +151,54 @@ class CodeAnalyzer(ast.NodeVisitor):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     fi.assignments.append(target.id)
+                else:
+                    self._record_class_attribute(self._extract_self_attribute(target))
+        elif self._class_stack:
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self._record_class_attribute(target.id)
+                else:
+                    self._record_class_attribute(self._extract_self_attribute(target))
         else:
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     self.file_info.global_vars.append(target.id)
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node):
+        target = node.target
+        if self._function_stack:
+            fi = self._function_stack[-1]
+            if isinstance(target, ast.Name):
+                fi.assignments.append(target.id)
+            else:
+                self._record_class_attribute(self._extract_self_attribute(target))
+        elif self._class_stack:
+            if isinstance(target, ast.Name):
+                self._record_class_attribute(target.id)
+            else:
+                self._record_class_attribute(self._extract_self_attribute(target))
+        else:
+            if isinstance(target, ast.Name):
+                self.file_info.global_vars.append(target.id)
+        self.generic_visit(node)
+
+    def visit_AugAssign(self, node):
+        target = node.target
+        if self._function_stack:
+            fi = self._function_stack[-1]
+            if isinstance(target, ast.Name):
+                fi.assignments.append(target.id)
+            else:
+                self._record_class_attribute(self._extract_self_attribute(target))
+        elif self._class_stack:
+            if isinstance(target, ast.Name):
+                self._record_class_attribute(target.id)
+            else:
+                self._record_class_attribute(self._extract_self_attribute(target))
+        else:
+            if isinstance(target, ast.Name):
+                self.file_info.global_vars.append(target.id)
         self.generic_visit(node)
 
     # ── Classes ──────────────────────────────
@@ -289,6 +357,52 @@ class ProjectVisualizer:
         h = hashlib.md5(s.encode("utf-8")).hexdigest()[:8]
         return f"id_{h}"
 
+    def _clean_label(self, text: str, max_len: int = 80) -> str:
+        cleaned = " ".join((text or "").split())
+        cleaned = cleaned.replace('"', "'")
+        if len(cleaned) <= max_len:
+            return cleaned
+        return cleaned[: max_len - 1] + "…"
+
+    def _short_file_label(self, path: str, parts: int = 2) -> str:
+        normalized = path.replace("\\", "/")
+        chunks = [p for p in normalized.split("/") if p]
+        if not chunks:
+            return path
+        return "/".join(chunks[-parts:])
+
+    def _function_label(self, fn: FunctionInfo) -> str:
+        prefix = "async " if fn.is_async else ""
+        loc = f"{self._short_file_label(fn.file)}:{fn.lineno}"
+        return f"{prefix}{fn.short_name}<br/>{loc}"
+
+    def _call_to_short_name(self, call_expr: str) -> str:
+        raw = (call_expr or "").strip()
+        if not raw:
+            return ""
+        if raw.startswith("await "):
+            raw = raw[6:].strip()
+        raw = raw.split("(", 1)[0].strip()
+        raw = re.sub(r"\[.*\]$", "", raw)
+        if "." in raw:
+            raw = raw.split(".")[-1]
+        return re.sub(r"[^0-9A-Za-z_]", "", raw)
+
+    def _method_entity_hints(self, method_name: str) -> set[str]:
+        method = (method_name or "").split(".")[-1]
+        hints: set[str] = set()
+        match_action = re.match(r"^(get|list|find|create|update|delete|add|remove|fetch)_(.+)$", method)
+        if match_action:
+            candidate = match_action.group(2).rstrip("s")
+            if candidate:
+                hints.add(candidate.lower())
+        match_id = re.match(r"^(.+)_(id|ids)$", method)
+        if match_id:
+            candidate = match_id.group(1).rstrip("s")
+            if candidate:
+                hints.add(candidate.lower())
+        return hints
+
     def write_architecture(self, output_dir: str):
         out = os.path.join(output_dir, "architecture.mmd")
         lines = ["flowchart TD"]
@@ -360,35 +474,213 @@ class ProjectVisualizer:
 
     def write_workflow(self, output_dir: str):
         out = os.path.join(output_dir, "workflow.mmd")
-        lines = ["flowchart TD"]
+        lines = [
+            "flowchart TD",
+            "  %% Human-readable workflow with function labels and call details",
+        ]
+
+        if not self.functions:
+            lines.append('  empty["No functions discovered"]')
+            Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+            print(f"  ✅ {out}")
+            return
+
+        short_to_full = defaultdict(list)
+        for key, fn in self.functions.items():
+            short_to_full[fn.name].append(key)
+
+        node_lines: list[str] = []
+        edge_lines: list[str] = []
+        added_nodes: set[str] = set()
+        added_edges: set[tuple[str, str]] = set()
+        node_ids: dict[str, str] = {}
+
+        def node_id_for(function_key: str) -> str:
+            if function_key in node_ids:
+                return node_ids[function_key]
+            fn = self.functions[function_key]
+            readable = re.sub(
+                r"[^0-9A-Za-z_]",
+                "_",
+                f"{fn.short_name}_{self._short_file_label(fn.file)}_{fn.lineno}",
+            ).strip("_")
+            if not readable:
+                readable = "function"
+            if readable[0].isdigit():
+                readable = f"fn_{readable}"
+            suffix = self._safe_id(function_key)[3:]
+            node_ids[function_key] = f"{readable}_{suffix}"
+            return node_ids[function_key]
+
+        def ensure_node(function_key: str):
+            if function_key in added_nodes:
+                return
+            fn = self.functions[function_key]
+            node_id = node_id_for(function_key)
+            label = self._clean_label(self._function_label(fn), max_len=100)
+            node_lines.append(f'  {node_id}["{label}"]')
+            added_nodes.add(function_key)
 
         # Heuristic entry points
         entries = [k for k, v in self.functions.items() if v.name in ("main", "run", "cli")]
         if not entries:
-            entries = list(self.functions.keys())[:10]
+            entries = list(sorted(self.functions.keys()))[:10]
 
-        visited = set()
+        for entry_key in entries:
+            ensure_node(entry_key)
+
+        visited: set[tuple[str, int]] = set()
 
         def walk(node_key: str, depth: int):
-            if depth > 3 or node_key in visited:
+            if depth > 3:
                 return
-            visited.add(node_key)
+            visit_key = (node_key, depth)
+            if visit_key in visited:
+                return
+            visited.add(visit_key)
 
             fn = self.functions[node_key]
-            src = self._safe_id(node_key)
-            for c in fn.calls[:20]:
-                callee_short = c.split("(")[0].split(".")[-1]
-                for tgt_key, tgt_fn in self.functions.items():
-                    if tgt_fn.name == callee_short:
-                        dst = self._safe_id(tgt_key)
-                        lines.append(f"  {src} --> {dst}")
-                        walk(tgt_key, depth + 1)
+            src_id = node_id_for(node_key)
+            for call_expr in fn.calls[:30]:
+                callee_short = self._call_to_short_name(call_expr)
+                if not callee_short:
+                    continue
+                for target_key in short_to_full.get(callee_short, []):
+                    ensure_node(target_key)
+                    dst_id = node_id_for(target_key)
+                    edge_key = (src_id, dst_id)
+                    if edge_key in added_edges:
+                        continue
+                    added_edges.add(edge_key)
+                    call_label = self._clean_label(call_expr, max_len=40)
+                    edge_lines.append(f'  {src_id} -->|{call_label}| {dst_id}')
+                    walk(target_key, depth + 1)
 
-        for e in entries:
-            walk(e, 0)
+        for entry_key in entries:
+            walk(entry_key, 0)
 
+        lines.extend(node_lines)
+        lines.extend(edge_lines)
         Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"  ✅ {out}")
+
+    def write_erd(self, output_dir: str):
+        out = os.path.join(output_dir, "erd.mmd")
+        lines = [
+            "erDiagram",
+            "  %% Best-effort ERD derived from classes and detected attributes",
+        ]
+
+        if not self.classes:
+            lines.append("  EMPTY_ENTITY {")
+            lines.append("    string note")
+            lines.append("  }")
+            Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+            print(f"  ✅ {out}")
+            return
+
+        class_names = {c.name: k for k, c in self.classes.items()}
+        lowered_name_to_class = {c.name.lower(): c.name for c in self.classes.values()}
+
+        for _key, cls in sorted(self.classes.items()):
+            lines.append(f"  {cls.name} {{")
+            attrs = sorted(set(cls.attributes))
+            if not attrs:
+                lines.append("    string _no_fields_detected")
+            else:
+                for attr in attrs[:30]:
+                    safe_attr = self._clean_label(attr, max_len=60).replace(" ", "_")
+                    lines.append(f"    string {safe_attr}")
+            lines.append("  }")
+
+        relation_lines: set[str] = set()
+
+        # Inheritance relationship.
+        for _key, cls in sorted(self.classes.items()):
+            for base in cls.bases:
+                base_name = base.split(".")[-1]
+                if base_name in class_names:
+                    relation_lines.add(f"  {base_name} ||--|| {cls.name} : inherits")
+
+        # Attribute-name relationship hints (e.g. user_id -> User).
+        for _key, cls in sorted(self.classes.items()):
+            for attr in cls.attributes:
+                attr_lower = attr.lower()
+                candidate = attr_lower
+                if candidate.endswith("_id"):
+                    candidate = candidate[:-3]
+                elif candidate.endswith("_ids"):
+                    candidate = candidate[:-4]
+                candidate = candidate.rstrip("s")
+                target_class = lowered_name_to_class.get(candidate)
+                if target_class and target_class != cls.name:
+                    relation_lines.add(f"  {cls.name} }}o--|| {target_class} : {attr}")
+
+        # Method-name relationship hints (e.g. get_orders -> Order).
+        for _key, cls in sorted(self.classes.items()):
+            for method in cls.methods:
+                hints = self._method_entity_hints(method)
+                for hint in hints:
+                    target_class = lowered_name_to_class.get(hint)
+                    if target_class and target_class != cls.name:
+                        relation_lines.add(f"  {cls.name} ||--o{{ {target_class} : {method}")
+
+        lines.extend(sorted(relation_lines))
+        Path(out).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"  ✅ {out}")
+
+    def _update_json_index_relationships(self, index: dict):
+        class_names = {c.name: k for k, c in self.classes.items()}
+        lowered_name_to_class = {c.name.lower(): c.name for c in self.classes.values()}
+
+        relationships: list[dict[str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+
+        def add_rel(source: str, target: str, relation: str, hint: str):
+            key = (source, target, relation)
+            if source == target or key in seen:
+                return
+            seen.add(key)
+            relationships.append(
+                {
+                    "source": source,
+                    "target": target,
+                    "relation": relation,
+                    "hint": hint,
+                }
+            )
+
+        for _key, cls in sorted(self.classes.items()):
+            for base in cls.bases:
+                base_name = base.split(".")[-1]
+                if base_name in class_names:
+                    add_rel(base_name, cls.name, "inherits", "base class")
+
+        for _key, cls in sorted(self.classes.items()):
+            for attr in cls.attributes:
+                attr_lower = attr.lower()
+                candidate = attr_lower
+                if candidate.endswith("_id"):
+                    candidate = candidate[:-3]
+                elif candidate.endswith("_ids"):
+                    candidate = candidate[:-4]
+                candidate = candidate.rstrip("s")
+                target_class = lowered_name_to_class.get(candidate)
+                if target_class:
+                    add_rel(cls.name, target_class, "references", f"attribute:{attr}")
+
+            for method in cls.methods:
+                for hint in self._method_entity_hints(method):
+                    target_class = lowered_name_to_class.get(hint)
+                    if target_class:
+                        add_rel(cls.name, target_class, "uses", f"method:{method}")
+
+        for class_key, cls in self.classes.items():
+            class_entry = index["classes"].get(class_key)
+            if class_entry is not None:
+                class_entry["attributes"] = sorted(set(cls.attributes))
+
+        index["relationships"] = relationships
 
     def write_summary(self, output_dir: str):
         out = os.path.join(output_dir, "summary.md")
@@ -423,6 +715,7 @@ class ProjectVisualizer:
                         "lineno": v.lineno,
                         "bases": v.bases,
                         "methods": v.methods,
+                        "attributes": v.attributes,
                     } for k, v in self.classes.items()
                 },
                 "functions": {
@@ -438,6 +731,7 @@ class ProjectVisualizer:
                     } for k, v in self.functions.items()
                 },
             }
+            self._update_json_index_relationships(index)
             out = os.path.join(output_dir, "codebase_index.json")
             with open(out, "w", encoding="utf-8") as f:
                 json.dump(index, f, indent=2)
@@ -453,6 +747,7 @@ class ProjectVisualizer:
         self.write_classes(output_dir)
         self.write_callgraph(output_dir)
         self.write_workflow(output_dir)
+        self.write_erd(output_dir)
         self.write_summary(output_dir)
         self.write_json_index(output_dir)
 
@@ -470,7 +765,8 @@ Output files:
   architecture.mmd   File/folder structure with import dependencies
   classes.mmd        Class diagram with hierarchy and methods
   callgraph.mmd      Cross-file function call graph
-  workflow.mmd       Execution workflow from entry points
+  workflow.mmd       Human-readable execution workflow from entry points
+  erd.mmd            Human-readable entity-relationship diagram from classes
   summary.md         Full Markdown report for AI agents
   codebase_index.json  Machine-readable index for tooling
         """,
