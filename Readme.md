@@ -188,6 +188,7 @@ Explicit targets file:
 - `classes.mmd`
 - `callgraph.mmd`
 - `workflow.mmd`
+- `erd.mmd`
 - `summary.md`
 - `codebase_index.json`
 
