@@ -10,6 +10,23 @@ for both humans and AI agents.
 - **Files touched** — the specific files modified (helps an AI jump straight to the right code)
 
 <!-- ENTRIES_START -->
+## [chore] 2026-04-29T17:13:17+00:00
+
+| Field   | Value |
+|---------|-------|
+| Type    | `chore` |
+| Branch  | `cursor/ai-context-continuity-7043` |
+| Commit  | `e8543630fb2472431694aae98725d15e6b5b419c` |
+| Date    | 2026-04-29T17:13:17+00:00 |
+
+**What changed:** Package restructure
+
+**Why:** Make installable via pip
+
+**Files touched:** `codebase_visualizer.py`
+
+---
+
 ## [chore] 2026-04-29T16:58:47+00:00
 
 | Field   | Value |
