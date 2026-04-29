@@ -187,6 +187,8 @@ def cmd_changelog(
     what: str,
     why: str,
     files: Optional[str] = None,
+    impact: Optional[str] = None,
+    impact_id: str = "",
 ) -> int:
     """Prepend a structured entry to CHANGELOG.md in the repo root."""
     project_path = os.path.abspath(project_path)
@@ -197,6 +199,7 @@ def cmd_changelog(
         print(f"Warning: type '{change_type}' is not one of {sorted(VALID_TYPES)}. Continuing.", file=sys.stderr)
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    mid = impact_id or _make_impact_id(ts)
     branch = _git.current_branch(repo_root)
     commit = _git.current_commit(repo_root)
 
@@ -204,12 +207,17 @@ def cmd_changelog(
         detected = _git.changed_files(repo_root)
         files = " ".join(detected[:20]) if detected else "(none detected)"
 
+    impact_block = ""
+    if impact:
+        impact_block = f"\n**Impact radius:** {impact}\n"
+
     entry = (
-        f"\n## [{change_type}] {ts}\n"
+        f"\n## [{change_type}] {ts} `{mid}`\n"
         f"\n"
         f"| Field   | Value |\n"
         f"|---------|-------|\n"
         f"| Type    | `{change_type}` |\n"
+        f"| ID      | `{mid}` |\n"
         f"| Branch  | `{branch}` |\n"
         f"| Commit  | `{commit}` |\n"
         f"| Date    | {ts} |\n"
@@ -219,6 +227,7 @@ def cmd_changelog(
         f"**Why:** {why}\n"
         f"\n"
         f"**Files touched:** `{files}`\n"
+        f"{impact_block}"
         f"\n"
         f"---\n"
     )
@@ -261,26 +270,33 @@ def _find_memory_file(project_path: str, repo_root: str) -> str:
     return os.path.join(project_path, "AI_PROJECT_MEMORY.md")
 
 
-def cmd_note(project_path: str, note: str) -> int:
+def _make_impact_id(ts: str) -> str:
+    """Short stable ID derived from timestamp, used to cross-link notes to changelog."""
+    import hashlib
+    return "MEM-" + hashlib.sha1(ts.encode()).hexdigest()[:8].upper()
+
+
+def cmd_note(project_path: str, note: str, impact_id: str = "") -> int:
     """Append a timestamped note to AI_PROJECT_MEMORY.md."""
     project_path = os.path.abspath(project_path)
     repo_root = _git.find_repo_root(project_path)
     mem_file = _find_memory_file(project_path, repo_root)
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    mid = impact_id or _make_impact_id(ts)
     branch = _git.current_branch(repo_root)
     commit = _git.current_commit(repo_root)
     diff = _git.diff_stat(repo_root)
     recent = _git.recent_commits(repo_root)
 
     entry = (
-        f"\n## {ts}\n"
+        f"\n## {ts} `{mid}`\n"
         f"\n"
         f"- **Branch**: `{branch}`\n"
         f"- **HEAD**: `{commit}`\n"
         f"- **Note**: {note}\n"
         f"\n"
-        f"### Diff (working tree)\n"
+        f"### Diff (staged or working tree)\n"
         f"\n"
         f"```\n{diff}\n```\n"
         f"\n"
@@ -400,6 +416,7 @@ def cmd_sync(
     why: Optional[str] = None,
     files: Optional[str] = None,
     note: Optional[str] = None,
+    impact: Optional[str] = None,
     target: Optional[str] = None,
     skip_regen: bool = False,
     force: bool = False,
@@ -410,9 +427,17 @@ def cmd_sync(
       1. analyze  — regenerate diagrams + ai_context_primer.md
       2. changelog — structured CHANGELOG.md entry  (if --type/--what/--why given)
       3. note      — AI_PROJECT_MEMORY.md entry      (auto-composed if not given)
+
+    A shared impact ID (MEM-xxxxxxxx) is stamped on both the changelog entry
+    and the memory note so they can be cross-referenced later.
     """
+    from datetime import datetime, timezone
     project_path = os.path.abspath(project_path)
     rc = 0
+
+    # Pre-compute a shared ID so changelog and memory note are cross-linked.
+    ts_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    shared_id = _make_impact_id(ts_now)
 
     # ── Step 1 ────────────────────────────────────────────────────────────────
     _banner("Step 1/3 — Regenerate diagrams + ai_context_primer.md")
@@ -424,7 +449,10 @@ def cmd_sync(
     # ── Step 2 ────────────────────────────────────────────────────────────────
     _banner("Step 2/3 — Structured changelog entry  (CHANGELOG.md)")
     if change_type and what and why:
-        rc |= cmd_changelog(project_path, change_type, what, why, files)
+        rc |= cmd_changelog(
+            project_path, change_type, what, why, files,
+            impact=impact, impact_id=shared_id,
+        )
     else:
         print("  Skipped — pass --type, --what, and --why to log a change.")
 
@@ -436,7 +464,7 @@ def cmd_sync(
         if files:
             memory_note += f" — files: {files}"
     if memory_note:
-        rc |= cmd_note(project_path, memory_note)
+        rc |= cmd_note(project_path, memory_note, impact_id=shared_id)
     else:
         print("  Skipped — pass --note or --what to add a memory entry.")
 

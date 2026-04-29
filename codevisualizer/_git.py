@@ -40,6 +40,15 @@ def current_commit(repo_root: str) -> str:
 
 
 def diff_stat(repo_root: str) -> str:
+    """Return a diff --stat summary.
+
+    Prefers staged changes (--cached) when any exist; falls back to the full
+    working-tree diff so that the snapshot is always non-empty if there is
+    anything to show.
+    """
+    staged = _run(["git", "diff", "--cached", "--stat"], cwd=repo_root)
+    if staged:
+        return staged
     return _run(["git", "diff", "--stat"], cwd=repo_root) or "(no diff)"
 
 
@@ -48,8 +57,17 @@ def recent_commits(repo_root: str, n: int = 5) -> str:
 
 
 def changed_files(repo_root: str) -> list[str]:
-    """Return files changed vs HEAD (staged + unstaged), best-effort."""
-    out = _run(["git", "diff", "--name-only", "HEAD"], cwd=repo_root)
+    """Return files changed vs HEAD (staged + unstaged), with rename detection.
+
+    Order of preference:
+    1. Staged files (--cached), which are the most intentional.
+    2. Working-tree changes vs HEAD.
+    Rename detection (-M) is enabled so moved files appear as the new name.
+    """
+    staged = _run(["git", "diff", "--cached", "--name-only", "-M"], cwd=repo_root)
+    if staged:
+        return [f for f in staged.splitlines() if f]
+    out = _run(["git", "diff", "--name-only", "-M", "HEAD"], cwd=repo_root)
     return [f for f in out.splitlines() if f] if out else []
 
 
