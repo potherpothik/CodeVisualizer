@@ -191,6 +191,19 @@ seconds without you having to re-explain anything.
 
 ## Suggested workflow summary
 
+**One command does everything (recommended):**
+
+```bash
+./CodeVisualizer/scripts/sync.sh \
+    --type fix \
+    --what "What you changed" \
+    --why  "Why you changed it"
+```
+
+This runs all three steps in order: regenerate diagrams → write `CHANGELOG.md` → update `AI_PROJECT_MEMORY.md`.
+
+Or step-by-step if you prefer:
+
 1. After any code change → run `changelog.sh` and/or `ai_note.sh`.
 2. After meaningful structural changes → run `regenerate_mermaid_output.sh`.
 3. When starting a new AI chat → paste `ai_context_primer.md` + recent history.

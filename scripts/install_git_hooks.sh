@@ -7,7 +7,7 @@ set -euo pipefail
 #   ./CodeVisualizer/scripts/install_git_hooks.sh
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ROOT_DIR="$(git -C "$TOOL_DIR/.." rev-parse --show-toplevel 2>/dev/null || (cd "$TOOL_DIR/.." && pwd))"
+ROOT_DIR="$(git -C "$TOOL_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$TOOL_DIR")"
 SRC_DIR="$TOOL_DIR/git-hooks"
 DST_DIR="$ROOT_DIR/.git/hooks"
 

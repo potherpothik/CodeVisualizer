@@ -11,7 +11,7 @@ set -euo pipefail
 # .ai-map-excludes for vendor trees, virtualenvs, and build output.
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ROOT_DIR="$(git -C "$TOOL_DIR/.." rev-parse --show-toplevel 2>/dev/null || (cd "$TOOL_DIR/.." && pwd))"
+ROOT_DIR="$(git -C "$TOOL_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$TOOL_DIR")"
 
 OUT_DIR="$ROOT_DIR/mermaid_output"
 

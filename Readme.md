@@ -34,6 +34,7 @@ CodeVisualizer/
     install_git_hooks.sh
     ai_note.sh                     ← append a free-form note to AI_PROJECT_MEMORY.md
     changelog.sh                   ← append a structured entry to CHANGELOG.md (repo root)
+    sync.sh                        ← one command: regenerate + changelog + memory note
   git-hooks/
     pre-commit
   Readme/
@@ -340,5 +341,6 @@ Or embed the folder into a host project and use the scripts from the host root a
 - `Readme/.cursorrules.example` — Cursor IDE persistent context template.
 - `Readme/.ai-map-targets.example` — template for target paths.
 - `Readme/.ai-map-excludes.example` — template for `--exclude` prefixes.
+- `scripts/sync.sh` — **one command** that runs regenerate + changelog + memory note together.
 - `scripts/changelog.sh` — structured change-log tool (`--type`, `--what`, `--why`, `--files`).
 - `scripts/ai_note.sh` — free-form project memory note tool.
