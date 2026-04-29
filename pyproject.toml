@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codevisualizer"
+version = "1.0.0"
+description = "AI context toolkit: generate Mermaid diagrams, JSON index, and ai_context_primer.md from a Python codebase."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = []          # stdlib only — no third-party deps
+
+keywords = ["ai", "codebase", "mermaid", "diagram", "context", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.scripts]
+codevis = "codevisualizer.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/potherpothik/CodeVisualizer"
+Repository = "https://github.com/potherpothik/CodeVisualizer"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["codevisualizer*"]
+
+[tool.setuptools.package-data]
+codevisualizer = ["templates/*", "templates/.*"]

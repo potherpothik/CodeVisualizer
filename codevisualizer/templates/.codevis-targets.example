@@ -1,0 +1,7 @@
+# One relative path per line. Lines starting with # are comments.
+# Paths are relative to the repository root.
+#
+# Examples:
+# src/my_app
+# packages/api
+# .

@@ -1,0 +1,10 @@
+# Path prefixes to skip when analyzing (one per line).
+# Relative to the directory being analyzed.
+#
+# node_modules
+# vendor
+# .venv
+# venv
+# dist
+# build
+# __pycache__
