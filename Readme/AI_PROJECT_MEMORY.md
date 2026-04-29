@@ -67,3 +67,30 @@ For structured change tracking (recommended), also use:
 > Entries added by `ai_note.sh` appear below in reverse-chronological order.
 > For a full structured log see `CHANGELOG.md` at the repository root.
 
+
+## 2026-04-29T16:58:47+00:00
+
+- **Branch**: `cursor/ai-context-continuity-7043`
+- **HEAD**: `bd40fc66d10c4751bacb1a34f891eb3f179392bd`
+- **Note**: chore: Added sync.sh one-command AI context pipeline — Users needed a single command to regenerate diagrams, log changes, and update memory — files: scripts/sync.sh
+
+### Diff (working tree)
+
+```
+ CHANGELOG.md                         | 19 +++++++++++++++++--
+ Readme/AI_PROJECT_MEMORY.md          | 10 ++++++++++
+ git-hooks/pre-commit                 |  2 +-
+ scripts/install_git_hooks.sh         |  2 +-
+ scripts/regenerate_mermaid_output.sh |  2 +-
+ 5 files changed, 30 insertions(+), 5 deletions(-)
+```
+
+### Recent commits
+
+```
+bd40fc6 feat: add AI context continuity tools (primer, changelog, cursorrules)
+54ca000 Merge pull request :human-readable-erd-workflow-aa47
+82d8cd2 Add human-readable workflow and ERD outputs
+3cfa96b Modified codebase_visualizer.py and regenerate_mermaid_output.sh
+5ceddb9 Initial commit: CodeVisualizer tooling
+```
