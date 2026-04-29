@@ -95,6 +95,7 @@ Examples:
     p_cl.add_argument("--what", required=True, metavar="TEXT", help="One sentence: what changed.")
     p_cl.add_argument("--why",  required=True, metavar="TEXT", help="One sentence: why it changed.")
     p_cl.add_argument("--files", metavar="FILES", help="Space-separated file list (auto-detected from git if omitted).")
+    p_cl.add_argument("--impact", metavar="TEXT", help="Optional impact radius: affected modules, migrations, config changes.")
 
     # ── note ──────────────────────────────────────────────────────────────────
     p_note = sub.add_parser(
@@ -124,6 +125,7 @@ Examples:
     p_sync.add_argument("--what", metavar="TEXT", help="One sentence: what changed.")
     p_sync.add_argument("--why",  metavar="TEXT", help="One sentence: why it changed.")
     p_sync.add_argument("--files", metavar="FILES", help="Files touched (auto-detected if omitted).")
+    p_sync.add_argument("--impact", metavar="TEXT", help="Optional impact radius: affected modules, migrations, config changes.")
     p_sync.add_argument("--note", metavar="TEXT", help="Extra memory note (auto-composed from --what/--why if omitted).")
     p_sync.add_argument("--target", "-t", metavar="PATH", help="Analyze a single target path.")
     p_sync.add_argument("--skip-regen", action="store_true", help="Skip diagram regeneration.")
@@ -156,6 +158,7 @@ def main():
             what=args.what,
             why=args.why,
             files=args.files,
+            impact=getattr(args, "impact", None),
         ))
 
     elif args.command == "note":
@@ -168,6 +171,7 @@ def main():
             what=args.what,
             why=args.why,
             files=args.files,
+            impact=getattr(args, "impact", None),
             note=args.note,
             target=args.target,
             skip_regen=args.skip_regen,

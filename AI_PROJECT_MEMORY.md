@@ -11,18 +11,43 @@ It is intentionally short and practical:
 Add entries with:
 
 ```bash
-./CodeVisualizer/scripts/ai_note.sh "your note..."
+codevis note "your note..."
 ```
 
 For structured change tracking (recommended), also use:
 
 ```bash
-./CodeVisualizer/scripts/changelog.sh \
+codevis sync \
     --type fix \
     --what "One-sentence summary of what changed" \
     --why  "One-sentence reason / motivation" \
     --files "path/to/file1.py path/to/file2.py"
 ```
+
+---
+
+## Decision Registry
+
+> Stable architectural decisions with unique IDs.  An AI agent **must not**
+> suggest reversing these without referencing the entry and its consequences.
+>
+> Status values: `active` | `reverted` | `superseded`
+
+| ID | Decision | Status | Chosen | Rejected | Consequences | Enforced in |
+|----|----------|--------|--------|----------|--------------|-------------|
+| DEC-001 | Single installable package `codevisualizer` | active | pip-installable package | monolithic script | Users install once; no copy-paste needed | `codevisualizer/`, `pyproject.toml` |
+| DEC-002 | stdlib-only runtime dependencies | active | stdlib only | third-party libs | Runs on any Python 3.9+ without install friction | `pyproject.toml` `dependencies=[]` |
+| DEC-003 | Mermaid output never committed to git | active | `.gitignore` exclusion | versioned output | Output is regenerated on demand; no stale artefacts | `.gitignore` |
+| DEC-004 | AST-resolved callgraph edges (not name-heuristic) | active | symbol table per file | short-name match-all | Unresolved calls listed separately; fewer hallucinated edges | `_analyzer.py` |
+
+---
+
+## Known pitfalls — do not suggest
+
+- **Do not remove the unresolved-call separation** — `FunctionInfo.unresolved_calls` is intentionally separate from `calls`. Merging them back breaks the callgraph accuracy guarantee.
+- **Do not add non-stdlib runtime dependencies** — the package must stay zero-dependency (DEC-002). Use stdlib equivalents only.
+- **Do not commit `mermaid_output/`** — it is gitignored by design (DEC-003).
+- **Do not call `cmd_note` without an `impact_id`** when called from `cmd_sync` — the shared ID is what links changelog entries to memory notes.
 
 ---
 
@@ -50,15 +75,18 @@ For structured change tracking (recommended), also use:
 
 > Document non-obvious bugs, surprising edge-cases, or partial fixes so the AI
 > does not repeatedly suggest the same wrong solutions.
+> Always include a **How to reproduce** note — even one line.
 
 <!-- Example entries:
 
 - **Invoice rounding** (`src/invoice.py:calculate_total`) — rounding is done
   *after* summing all line items, not per-line.  Per-line rounding accumulates
   errors.  Do not change this without updating the test suite in `tests/test_invoice.py`.
+  - *Reproduce*: `python -c "from src.invoice import calc; print(calc([0.1]*3))"` → 0.30, not 0.29.
 
 - **Legacy payment adapter** (`legacy/payment_v1.py`) — vendor code, do not modify.
   The interface is wrapped in `src/payment_adapter.py`.
+  - *Reproduce*: N/A (static vendor file; changes break signature verification).
 
 -->
 
