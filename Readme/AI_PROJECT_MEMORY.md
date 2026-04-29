@@ -14,3 +14,56 @@ Add entries with:
 ./CodeVisualizer/scripts/ai_note.sh "your note..."
 ```
 
+For structured change tracking (recommended), also use:
+
+```bash
+./CodeVisualizer/scripts/changelog.sh \
+    --type fix \
+    --what "One-sentence summary of what changed" \
+    --why  "One-sentence reason / motivation" \
+    --files "path/to/file1.py path/to/file2.py"
+```
+
+---
+
+## Architecture decisions
+
+> Keep this section up to date whenever a significant architectural choice is made.
+> An AI agent reading this will understand *why* the code is shaped the way it is,
+> preventing it from suggesting changes that violate intentional constraints.
+
+<!-- Example entries:
+
+- **Monetary values stored as integers (cents)** — avoids float precision bugs in
+  tax and invoice calculations.  All display formatting happens at the boundary
+  (PDF renderer, API response serialiser).
+
+- **No ORM lazy loading** — all queries use explicit `joinedload()` / `selectinload()`.
+  Lazy loading caused N+1 issues in high-traffic endpoints.
+
+- **Background jobs through Celery only** — never call task functions synchronously
+  from request handlers.  Keeps API response times under 200 ms.
+
+-->
+
+## Known issues / gotchas
+
+> Document non-obvious bugs, surprising edge-cases, or partial fixes so the AI
+> does not repeatedly suggest the same wrong solutions.
+
+<!-- Example entries:
+
+- **Invoice rounding** (`src/invoice.py:calculate_total`) — rounding is done
+  *after* summing all line items, not per-line.  Per-line rounding accumulates
+  errors.  Do not change this without updating the test suite in `tests/test_invoice.py`.
+
+- **Legacy payment adapter** (`legacy/payment_v1.py`) — vendor code, do not modify.
+  The interface is wrapped in `src/payment_adapter.py`.
+
+-->
+
+## Recent changes
+
+> Entries added by `ai_note.sh` appear below in reverse-chronological order.
+> For a full structured log see `CHANGELOG.md` at the repository root.
+

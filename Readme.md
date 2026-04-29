@@ -32,12 +32,14 @@ CodeVisualizer/
   scripts/
     regenerate_mermaid_output.sh   ← reads .ai-map-targets + .ai-map-excludes, per-target --out
     install_git_hooks.sh
-    ai_note.sh
+    ai_note.sh                     ← append a free-form note to AI_PROJECT_MEMORY.md
+    changelog.sh                   ← append a structured entry to CHANGELOG.md (repo root)
   git-hooks/
     pre-commit
   Readme/
     .ai-map-targets.example
     .ai-map-excludes.example
+    .cursorrules.example    ← Cursor IDE persistent context template (copy to repo root)
     AI_AGENT_GUIDE.md       ← short quick reference for agents and daily use
     AI_PROJECT_MEMORY.md    ← curated “what changed” log (optional)
   .ai-map-targets           ← optional (same semantics as Readme/.ai-map-targets; see below)
@@ -191,6 +193,7 @@ Explicit targets file:
 - `erd.mmd`
 - `summary.md`
 - `codebase_index.json`
+- **`ai_context_primer.md`** — compact paste-ready project brief for new AI chats
 
 **Incremental runs:** For each target, a hash is stored in **`mermaid_output/.inputs.<sanitized_target>.sha1`** (next to the per-target folders, not inside them). The hash is based on **git-tracked** files under that target. If nothing changed, that target’s diagrams are skipped.
 
@@ -215,6 +218,38 @@ Chat transcripts are not in git. To keep a short, durable log (branch, HEAD, not
 ```
 
 Default append path: `CodeVisualizer/Readme/AI_PROJECT_MEMORY.md` (fallback: host `Readme/AI_PROJECT_MEMORY.md` if the first is missing).
+
+### 8) (Optional) Structured change log
+
+Record every meaningful modification in a machine-readable yet human-readable format so an AI agent can understand the full history without parsing raw git log:
+
+```bash
+./CodeVisualizer/scripts/changelog.sh \
+    --type  feat          `# feat | fix | refactor | perf | chore | docs | test` \
+    --what  "Added PDF export to invoice emails" \
+    --why   "Customers requested downloadable invoices" \
+    --files "src/invoice.py src/email_sender.py"
+```
+
+Prepends a structured entry (table + prose) to **`CHANGELOG.md`** at the host repo root.
+If `CHANGELOG.md` does not exist it is created with a header and column guide.
+Omit `--files` to auto-detect changed files from `git diff HEAD`.
+
+### 9) (Optional) Cursor IDE persistent context (`.cursorrules`)
+
+Copy the template to your host repo root and fill in the project-specific sections:
+
+```bash
+cp CodeVisualizer/Readme/.cursorrules.example .cursorrules
+```
+
+Cursor automatically prepends `.cursorrules` to every prompt in the workspace, so the AI
+always knows the project identity, stack, architecture constraints, and where to look —
+even without manually pasting the context primer.
+
+**Recommended combination:** `.cursorrules` for persistent identity + paste
+`mermaid_output/<target>/ai_context_primer.md` at the start of each chat session
+for the live, regenerated code map.
 
 ---
 
@@ -300,6 +335,10 @@ Or embed the folder into a host project and use the scripts from the host root a
 
 ## See also
 
-- `Readme/AI_AGENT_GUIDE.md` — condensed workflow for day-to-day use.
+- `Readme/AI_AGENT_GUIDE.md` — condensed workflow for day-to-day use, including the "zero re-explanation" new-chat protocol.
+- `Readme/AI_PROJECT_MEMORY.md` — curated change history with architecture decisions and known issues.
+- `Readme/.cursorrules.example` — Cursor IDE persistent context template.
 - `Readme/.ai-map-targets.example` — template for target paths.
 - `Readme/.ai-map-excludes.example` — template for `--exclude` prefixes.
+- `scripts/changelog.sh` — structured change-log tool (`--type`, `--what`, `--why`, `--files`).
+- `scripts/ai_note.sh` — free-form project memory note tool.

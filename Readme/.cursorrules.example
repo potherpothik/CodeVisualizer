@@ -1,0 +1,113 @@
+# .cursorrules  — drop this file in the ROOT of your host repository.
+#
+# Cursor IDE loads it automatically and injects the contents as persistent
+# system context for every AI chat in this workspace.  The result: you never
+# need to re-explain the project when you start a new conversation.
+#
+# ─── HOW TO USE ───────────────────────────────────────────────────────────────
+#
+# 1. Copy this file to your host repo root and rename it:
+#
+#      cp CodeVisualizer/Readme/.cursorrules.example .cursorrules
+#
+# 2. Fill in the sections below that are marked  ← EDIT THIS
+#    (project name, stack, current focus, etc.).
+#
+# 3. Keep it short — a few hundred words max.  Cursor prepends the full file to
+#    every prompt, so verbose rules hurt more than they help.
+#
+# 4. Re-run CodeVisualizer any time the codebase changes significantly:
+#
+#      ./CodeVisualizer/scripts/regenerate_mermaid_output.sh
+#
+#    This refreshes:
+#      • mermaid_output/<target>/ai_context_primer.md   ← paste into new chats
+#      • mermaid_output/<target>/codebase_index.json    ← machine-readable index
+#      • mermaid_output/<target>/*.mmd                  ← diagrams
+#
+# 5. After any meaningful code change, record it:
+#
+#      # Log it in the AI memory (free-form note):
+#      ./CodeVisualizer/scripts/ai_note.sh "Fixed X; why; where to look."
+#
+#      # Log it in the structured changelog (machine+human readable):
+#      ./CodeVisualizer/scripts/changelog.sh \
+#          --type fix \
+#          --what "Fixed price rounding in invoice" \
+#          --why  "Float precision caused cent errors in PDF exports" \
+#          --files "src/invoice.py src/utils/currency.py"
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+## Project identity
+
+**Project name:** <!-- ← EDIT THIS: e.g. "Acme Invoice Service" -->
+**Purpose:** <!-- ← EDIT THIS: one sentence, e.g. "Generates and emails PDF invoices for Shopify orders." -->
+**Language / stack:** <!-- ← EDIT THIS: e.g. "Python 3.11 · FastAPI · PostgreSQL · Celery · Redis" -->
+**Repo layout:** <!-- ← EDIT THIS: e.g. "src/api/ (FastAPI routes), src/models/ (SQLAlchemy), src/tasks/ (Celery), tests/" -->
+
+## Current focus / active work
+
+<!-- ← EDIT THIS: what is being worked on right now, so the AI starts in the right context.
+     Example:
+     Working on the `InvoiceGenerator` class in `src/invoice.py`.
+     The goal is to fix float precision in `calculate_total()` and add PDF attachment support.
+-->
+
+## Architecture decisions and constraints
+
+<!-- ← EDIT THIS: non-obvious rules the AI must respect.
+     Examples:
+     - No ORM lazy loading — always use explicit `.options(joinedload(...))`.
+     - All monetary values are stored as integers (cents), never floats.
+     - Do not touch `legacy/` — it is vendor code and must not be modified.
+     - Background jobs go through Celery; never call them synchronously.
+-->
+
+## Where the AI should look first
+
+When asked about the project structure or a bug, prefer reading these files in order:
+
+1. `mermaid_output/<target>/ai_context_primer.md` — compact project brief
+2. `CodeVisualizer/Readme/AI_PROJECT_MEMORY.md` — recent change history and reasons
+3. `CHANGELOG.md` — structured log of every modification (what, why, which files)
+4. `mermaid_output/<target>/codebase_index.json` — full class/function index
+5. `mermaid_output/<target>/callgraph.mmd` — who calls what
+6. `mermaid_output/<target>/erd.mmd` — entity relationships
+
+## Coding style
+
+<!-- ← EDIT THIS: house rules the AI should follow.
+     Examples:
+     - PEP 8, max line length 100.
+     - Use type hints on all public functions.
+     - No bare `except`; always catch specific exceptions.
+     - Tests live under `tests/` and use pytest.
+     - Docstrings use Google style.
+-->
+
+## Things the AI must NOT do
+
+<!-- ← EDIT THIS.
+     Examples:
+     - Do not install new dependencies without asking.
+     - Do not reformat files that are not part of the current task.
+     - Do not modify database migration files — always create new ones.
+-->
+
+## Quick reference commands
+
+```bash
+# Re-generate all diagrams and ai_context_primer.md
+./CodeVisualizer/scripts/regenerate_mermaid_output.sh
+
+# Append a free-form note to the AI memory log
+./CodeVisualizer/scripts/ai_note.sh "Note about what changed and why."
+
+# Append a structured entry to CHANGELOG.md
+./CodeVisualizer/scripts/changelog.sh \
+    --type feat \
+    --what "Added PDF attachment to invoice emails" \
+    --why  "Customers requested downloadable invoices" \
+    --files "src/invoice.py src/email_sender.py"
+```
