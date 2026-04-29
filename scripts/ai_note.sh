@@ -8,7 +8,7 @@ set -euo pipefail
 #   ./CodeVisualizer/scripts/ai_note.sh "Fixed X; why; where; repro/logs..."
 
 TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ROOT_DIR="$(git -C "$TOOL_DIR/.." rev-parse --show-toplevel 2>/dev/null || (cd "$TOOL_DIR/.." && pwd))"
+ROOT_DIR="$(git -C "$TOOL_DIR" rev-parse --show-toplevel 2>/dev/null || echo "$TOOL_DIR")"
 
 MEM_FILE="$TOOL_DIR/Readme/AI_PROJECT_MEMORY.md"
 if [[ ! -f "$MEM_FILE" ]]; then
